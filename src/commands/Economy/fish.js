@@ -5,7 +5,7 @@ import { withErrorHandling, createError, ErrorTypes } from '../../utils/errorHan
 import { MessageTemplates } from '../../utils/messageTemplates.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 
-const FISH_COOLDOWN = 45 * 60 * 1000; 
+const FISH_COOLDOWN = 0;
 const BASE_MIN_REWARD = 300;
 const BASE_MAX_REWARD = 900;
 const FISHING_ROD_MULTIPLIER = 1.5;
@@ -38,98 +38,65 @@ export default {
     execute: withErrorHandling(async (interaction, config, client) => {
         const deferred = await InteractionHelper.safeDefer(interaction);
         if (!deferred) return;
-            
-            const userId = interaction.user.id;
-            const guildId = interaction.guildId;
-            const now = Date.now();
 
-            const userData = await getEconomyData(client, guildId, userId);
-            const lastFish = userData.lastFish || 0;
-            const hasFishingRod = userData.inventory["fishing_rod"] || 0;
+        const userId = interaction.user.id;
+        const guildId = interaction.guildId;
+        const now = Date.now();
 
-            if (now < lastFish + FISH_COOLDOWN) {
-                const remaining = lastFish + FISH_COOLDOWN - now;
-                const hours = Math.floor(remaining / (1000 * 60 * 60));
-                const minutes = Math.floor(
-                    (remaining % (1000 * 60 * 60)) / (1000 * 60),
-                );
+        const userData = await getEconomyData(client, guildId, userId);
+        const hasFishingRod = userData.inventory["fishing_rod"] || 0;
 
-                throw createError(
-                    "Fishing cooldown active",
-                    ErrorTypes.RATE_LIMIT,
-                    `You're too tired to fish right now. Rest for **${hours}h ${minutes}m** before fishing again.`,
-                    { remaining, cooldownType: 'fish' }
-                );
-            }
+        const rand = Math.random();
+        let fishCaught;
 
-            
-            const rand = Math.random();
-            let fishCaught;
-            
-            if (rand < 0.5) {
-                
-                fishCaught = FISH_TYPES.filter(f => f.rarity === 'common')[Math.floor(Math.random() * 3)];
-            } else if (rand < 0.75) {
-                
-                fishCaught = FISH_TYPES.filter(f => f.rarity === 'uncommon')[Math.floor(Math.random() * 2)];
-            } else if (rand < 0.9) {
-                
-                fishCaught = FISH_TYPES.filter(f => f.rarity === 'rare')[Math.floor(Math.random() * 2)];
-            } else if (rand < 0.98) {
-                
-                fishCaught = FISH_TYPES.find(f => f.rarity === 'epic');
-            } else {
-                
-                fishCaught = FISH_TYPES.find(f => f.rarity === 'legendary');
-            }
+        if (rand < 0.5) {
+            fishCaught = FISH_TYPES.filter(f => f.rarity === 'common')[Math.floor(Math.random() * 3)];
+        } else if (rand < 0.75) {
+            fishCaught = FISH_TYPES.filter(f => f.rarity === 'uncommon')[Math.floor(Math.random() * 2)];
+        } else if (rand < 0.9) {
+            fishCaught = FISH_TYPES.filter(f => f.rarity === 'rare')[Math.floor(Math.random() * 2)];
+        } else if (rand < 0.98) {
+            fishCaught = FISH_TYPES.find(f => f.rarity === 'epic');
+        } else {
+            fishCaught = FISH_TYPES.find(f => f.rarity === 'legendary');
+        }
 
-            const baseEarned = Math.floor(
-                Math.random() * (BASE_MAX_REWARD - BASE_MIN_REWARD + 1)
-            ) + BASE_MIN_REWARD;
+        const baseEarned = Math.floor(Math.random() * (BASE_MAX_REWARD - BASE_MIN_REWARD + 1)) + BASE_MIN_REWARD;
 
-            let finalEarned = baseEarned;
-            let multiplierMessage = "";
+        let finalEarned = baseEarned;
+        let multiplierMessage = "";
 
-            
-            if (hasFishingRod > 0) {
-                finalEarned = Math.floor(baseEarned * FISHING_ROD_MULTIPLIER);
-                multiplierMessage = `\n🎣 **Fishing Rod Bonus: +50%**`;
-            }
+        if (hasFishingRod > 0) {
+            finalEarned = Math.floor(baseEarned * FISHING_ROD_MULTIPLIER);
+            multiplierMessage = `\n🎣 **Fishing Rod Bonus: +50%**`;
+        }
 
-            const catchMessage = CATCH_MESSAGES[Math.floor(Math.random() * CATCH_MESSAGES.length)];
+        const catchMessage = CATCH_MESSAGES[Math.floor(Math.random() * CATCH_MESSAGES.length)];
 
-            userData.wallet += finalEarned;
-            userData.lastFish = now;
+        userData.wallet += finalEarned;
+        userData.lastFish = now;
 
-            await setEconomyData(client, guildId, userId, userData);
+        await setEconomyData(client, guildId, userId, userData);
 
-            const rarityColors = {
-                common: '#95A5A6',
-                uncommon: '#2ECC71',
-                rare: '#3498DB',
-                epic: '#9B59B6',
-                legendary: '#F1C40F'
-            };
+        const rarityColors = {
+            common: '#95A5A6',
+            uncommon: '#2ECC71',
+            rare: '#3498DB',
+            epic: '#9B59B6',
+            legendary: '#F1C40F'
+        };
 
-            const embed = createEmbed({
-                title: '🎣 Fishing Success!',
-                description: `${catchMessage}\n\nYou caught a **${fishCaught.emoji} ${fishCaught.name}**! You sold it for **$${finalEarned.toLocaleString()}**!${multiplierMessage}`,
-                color: rarityColors[fishCaught.rarity]
-            })
-                .addFields(
-                    {
-                        name: "💵 New Cash Balance",
-                        value: `$${userData.wallet.toLocaleString()}`,
-                        inline: true,
-                    },
-                    {
-                        name: "🐟 Rarity",
-                        value: fishCaught.rarity.charAt(0).toUpperCase() + fishCaught.rarity.slice(1),
-                        inline: true,
-                    }
-                )
-                .setFooter({ text: `Next fishing trip available in 45 minutes.` });
+        const embed = createEmbed({
+            title: '🎣 Fishing Success!',
+            description: `${catchMessage}\n\nYou caught a **${fishCaught.emoji} ${fishCaught.name}**! You sold it for **$${finalEarned.toLocaleString()}**!${multiplierMessage}`,
+            color: rarityColors[fishCaught.rarity]
+        })
+            .addFields(
+                { name: "💵 New Cash Balance", value: `$${userData.wallet.toLocaleString()}`, inline: true },
+                { name: "🐟 Rarity", value: fishCaught.rarity.charAt(0).toUpperCase() + fishCaught.rarity.slice(1), inline: true }
+            )
+            .setFooter({ text: `No cooldown - fish anytime!` });
 
-            await InteractionHelper.safeEditReply(interaction, { embeds: [embed] });
+        await InteractionHelper.safeEditReply(interaction, { embeds: [embed] });
     }, { command: 'fish' })
 };
